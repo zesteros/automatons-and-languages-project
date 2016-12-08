@@ -1,0 +1,81 @@
+/*Bibliotecas necesarias*/
+import java.io.*;
+import java_cup.runtime.*;
+import java.util.*;
+/*Código inicializador*/
+parser code {:
+    public static void main (String a[]) throws Exception{
+		try {
+			//crea una instancia de esta clase y está lista para mandarle argumentos
+			new parser(new Yylex(System.in)).parse();
+		} catch(IOException e){
+			System.out.println("ERROR "+e);
+		}
+		
+	}
+	//método para controlar los errores
+	public void syntax_error(Symbol s){
+		report_error("Error de sintaxis linea: "+ Integer.toString(Yylex.linea+1)+
+		" Columna: "+ Integer.toString(Yylex.pos +1)+" en \""+s.value+"\"", null);
+	}
+:}
+
+action code{:
+	/*Estructura de datos para almacenar variables*/
+	int integer = 1;
+	HashMap<String, Integer> map = new HashMap<String, Integer>();
+:}
+/*Simbolos terminales (que usa el usuario en su código)*/
+terminal ID, EQUAL, SEMI, PLUS, MINUS, TIMES, LPAREN, RPAREN, MOD, DIVIDE;
+terminal Integer NUMBER;        // our scanner provides numbers as integers
+
+/* No terminales(internos del analizador) */
+non terminal Object		expr_list, expr_part;
+non terminal Integer    expr, sent;      // used to store evaluated subexpressions
+
+/* Precedencias (jerarquía de operadores)*/
+precedence left PLUS, MINUS;
+precedence left TIMES, DIVIDE, MOD;
+
+/* The grammar rules
+*	Reglas gramáticas o producciones
+*/
+/*Inicia en una lista de expresiones o en sola una expresión*/
+expr_list ::= expr_list expr_part
+			| expr_part;
+/*Una parte de la expresión puede ser una sola expresión o una sentencia (algo =(es igual a) algo)
+y termina en una coma o (SEMI)*/
+expr_part ::= expr:e SEMI         {: System.out.println("Operacion exitosa. Resultado = "+ e.intValue());:}
+			| sent:e SEMI			{: System.out.println("Operacion exitosa. Resultado = "+ e.intValue());:};
+			
+/*Sentencia deriva a un identificador=expresión*/
+sent		::=	ID:e1 EQUAL expr:e2		{:
+											if(!map.containsKey(e1.toString()))//si el mapa no contiene el ID
+												map.put(e1.toString(), new Integer(e2.intValue()));//agregalo y asignale el valor
+											else 
+												map.replace(e1.toString(), new Integer(e2.intValue()));//si lo tiene reemplaza el valor
+											RESULT = new Integer(map.get(e1.toString()));//regresa el resultado de la asignacion
+										:};
+/*Expresión deriva a todas estas
+-ID
+-NUMERO
+-EXPRESION+EXPRESION
+-EXPRESION-EXPRESION
+...ETC*/
+expr      ::= ID:e							{:if(!map.containsKey(e)){
+												System.out.println("No se ha declarado la variable <\""+e+"\">");
+												System.exit(1);
+												} else RESULT = new Integer(map.get(e));
+											:}
+			 | NUMBER:n	                    {: RESULT = new Integer(n.intValue());:}
+			 | expr:e1 PLUS  expr:e2        {: RESULT = new Integer(e1.intValue() + e2.intValue());       :}
+             | expr:e1 MINUS expr:e2        {: RESULT = new Integer(e1.intValue() - e2.intValue());       :}
+             | expr:e1 DIVIDE expr:e2       {: if(e2.intValue() != 0) RESULT = new Integer(e1.intValue()/e2.intValue());
+												else {
+													System.out.println("Error semantico, no se puede dividir entre cero");
+													System.exit(1);
+												}
+											:}
+			 | expr:e1 MOD expr:e2			{: RESULT = new Integer(e1.intValue()%e2.intValue());	:}
+			 | expr:e1 TIMES expr:e2		{: RESULT = new Integer(e1.intValue()*e2.intValue());	:}
+			 | LPAREN expr:e RPAREN	        {: RESULT = new Integer(e.intValue());           		:};
